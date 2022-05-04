@@ -1,6 +1,15 @@
 server:
   port: 9191
 
+eureka:
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: http://localhost:8761/eureka
+  instance:
+    hostname: localhost
+
 spring:
   application:
     name: API-GATEWAY
@@ -11,16 +20,39 @@ spring:
           uri: lb://USER-SERVICE
           predicates:
             - Path=/api/v1/users,/api/v1/users/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: USER-SERVICE
+                fallbackUri: forward:/userServiceFallback
         - id: DEPARTMENT-SERVICE
           uri: lb://DEPARTMENT-SERVICE
           predicates:
             - Path=/api/departments,/api/v1/departments/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: DEPARTMENT-SERVICE
+                fallbackUri: forward:/departmentServiceFallback
 
-eureka:
-  client:
-    register-with-eureka: true
-    fetch-registry: true
-    service-url:
-      defaultZone: http://localhost:8761/eureka
-  instance:
-    hostname: localhost
+resilience4j:
+  circuitbreaker:
+    instances:
+      DEPARTMENT-SERVICE:
+        sliding-window-size: 10
+        permitted-number-of-calls-in-half-open-state: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        register-health-indicator: true
+      USER-SERVICE:
+        sliding-window-size: 10
+        permitted-number-of-calls-in-half-open-state: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        register-health-indicator: true
+  timelimiter:
+    instances:
+      DEPARTMENT-SERVICE:
+        timeout-duration: 2s
+      USER-SERVICE:
+        timeout-duration: 2s
